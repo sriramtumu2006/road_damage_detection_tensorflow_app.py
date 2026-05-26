@@ -1,17 +1,14 @@
 import streamlit as st
 import numpy as np
-import tensorflow as tf
+import onnxruntime as ort
 
 from PIL import Image
 
-interpreter = tf.lite.Interpreter(
-    model_path="road_damage_model.tflite"
+session = ort.InferenceSession(
+    "road_damage_model.onnx"
 )
 
-interpreter.allocate_tensors()
-
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
+input_name = session.get_inputs()[0].name
 
 classes = {
     0: "Pothole",
@@ -19,40 +16,42 @@ classes = {
     2: "Manhole"
 }
 
-st.title("Road Damage Detection")
+st.set_page_config(
+    page_title="Road Damage Detection",
+    page_icon="🚧"
+)
+
+st.title("🚧 AI-Based Road Damage Detection")
 
 uploaded_file = st.file_uploader(
-    "Upload Image",
-    type=["jpg","png","jpeg"]
+    "Upload Road Image",
+    type=["jpg", "jpeg", "png"]
 )
 
 if uploaded_file is not None:
 
-    img = Image.open(uploaded_file)
+    img = Image.open(uploaded_file).convert("RGB")
 
-    st.image(img)
+    st.image(
+        img,
+        caption="Uploaded Image",
+        use_container_width=True
+    )
 
     img = img.resize((128,128))
 
-    img_array = np.array(img)
+    img_array = np.array(img).astype(np.float32)
 
     img_array = img_array / 255.0
 
-    img_array = np.expand_dims(
-        img_array.astype(np.float32),
-        axis=0
+    img_array = np.expand_dims(img_array, axis=0)
+
+    prediction = session.run(
+        None,
+        {input_name: img_array}
     )
 
-    interpreter.set_tensor(
-        input_details[0]['index'],
-        img_array
-    )
-
-    interpreter.invoke()
-
-    prediction = interpreter.get_tensor(
-        output_details[0]['index']
-    )
+    prediction = prediction[0]
 
     predicted_class = np.argmax(prediction)
 
